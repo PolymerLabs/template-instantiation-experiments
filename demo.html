@@ -1,0 +1,15 @@
+<div id="container"></div>
+<script type="module">
+  import { html, render } from './lib/lti-html.js';
+
+	const container = document.querySelector('#container');
+  const assembly = html`<span>${"hello ti"}</span><span attr="${"foo"}"></span>`;
+
+	render(assembly, container);
+
+	render(html`<span>${html`<span>${"hello nested"}</span>`}</span>`, container);
+
+  render(html`<span><div>${"div child"}</div><div>Reused assembly ${assembly} hi ${html`<span>${"nested span assembly"}</span>`}`, container);
+
+  window.asm = assembly;
+</script>
