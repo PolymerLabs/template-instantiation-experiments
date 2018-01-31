@@ -13,47 +13,47 @@
  */
 
 import { TemplateAssembly } from '../../template-instantiation/lib/template-assembly.js';
-import { TemplateDiagram } from '../../template-instantiation/lib/template-diagram.js';
+import { TemplateDefinition } from '../../template-instantiation/lib/template-definition.js';
 import { TemplateInstance } from '../../template-instantiation/lib/template-instance.js';
+import { LtiTemplateProcessor } from './lti-template-processor.js';
 
 // TODO(cdata): need envCachesTemplates check for x-browser compatibility
 // @see https://github.com/Polymer/lit-html/blob/master/src/lit-html.ts#L15-L23
 
-const diagrams = new Map<TemplateStringsArray|string, TemplateDiagram>();
+const definitions = new Map<TemplateStringsArray|string, TemplateDefinition>();
+const processor = new LtiTemplateProcessor();
 
 export const html = (strings: TemplateStringsArray, ...values: any[]) =>
     ltiTag(strings, values);
 
 function ltiTag(strings: TemplateStringsArray, values: any[]): TemplateAssembly {
-  let diagram = diagrams.get(strings);
+  let definition = definitions.get(strings);
 
-  if (diagram == null) {
+  if (definition == null) {
     const template = document.createElement('template');
     template.innerHTML = values.reduceRight((html, _, index) => {
       return strings[index] + `{{${index}}}` + html;
     }, strings[strings.length - 1]);
 
-    diagram = new TemplateDiagram(template);
-    diagrams.set(strings, diagram);
-
-    console.log(template.innerHTML);
+    definition = new TemplateDefinition(template);
+    definitions.set(strings, definition);
   }
 
-  return new TemplateAssembly(diagram, values);
+  return new TemplateAssembly(definition, processor, values);
 }
 
 export const render = (assembly: TemplateAssembly, container: Element) => {
-  const { diagram, state, processor } = assembly;
+  const { definition, state, processor } = assembly;
   let instance = (container as any).__templateInstance as TemplateInstance;
 
   if (instance != null &&
-      instance.diagram === diagram &&
+      instance.definition === definition &&
       instance.processor === processor) {
     instance.update(state);
     return;
   }
 
-  instance = new TemplateInstance(diagram, state, processor);
+  instance = new TemplateInstance(definition, processor, state);
   (container as any).__templateInstance = instance;
 
   removeNodes(container, container.firstChild);
