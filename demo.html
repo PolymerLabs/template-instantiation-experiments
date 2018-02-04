@@ -13,3 +13,25 @@
 
   window.asm = assembly;
 </script>
+
+<div id="other-container">
+  <x-foo></x-foo>
+</div>
+
+<template id="x-foo">
+  <div>Hi!</div>
+  <div>{{bar}}</div>
+</template>
+<script type="module">
+  import { Tilymer } from './lib/tilymer.js';
+
+  Tilymer({
+    is: 'x-foo',
+
+    properties: {
+      bar: {
+        value: 'dynamic'
+      }
+    }
+  });
+</script>
