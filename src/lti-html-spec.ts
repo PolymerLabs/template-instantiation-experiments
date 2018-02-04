@@ -1,4 +1,5 @@
 import { Spec } from '../../@0xcda7a/test-runner/lib/spec.js';
+import { Fixturable } from '../../@0xcda7a/test-runner/lib/mixins/fixturable.js';
 import '../../chai/chai.js';
 import { html, render } from './lti-html.js';
 import { TemplateAssembly } from '../../template-instantiation/lib/template-assembly.js';
@@ -6,10 +7,10 @@ import { TemplateRule, AttributeTemplateRule } from
     '../../template-instantiation/lib/template-rule.js';
 
 const { expect } = chai;
-const spec = new Spec();
+const spec = new (Fixturable(Spec))();
 const { describe, it, fixture } = spec;
 
-describe('html', () => {
+describe('lti-html', () => {
   it('returns a TemplateAssembly', () => {
     expect(html``).to.be.instanceof(TemplateAssembly);
   });
@@ -291,8 +292,49 @@ describe('html', () => {
             `<h2>${alternativeContent}</h2>suffix`);
       });
     });
+
+    describe('array values', () => {
+      it('changes with a new array of same length', ({ container }: any) => {
+        const assemble = (items: number[]) => html`<div>${items}</div>`;
+
+        render(assemble([1, 2, 3]), container);
+        expect(container.innerHTML).to.be.equal('<div>123</div>');
+
+        render(assemble([3, 2, 1]), container);
+        expect(container.innerHTML).to.be.equal('<div>321</div>');
+      });
+
+      it('updates when arrays shrink and grow', ({ container }: any) => {
+        const assemble = (items: number[]) => html`<div>${items}</div>`;
+
+        render(assemble([1, 2, 3]), container);
+        expect(container.innerHTML).to.be.equal('<div>123</div>');
+
+        render(assemble([4]), container);
+        expect(container.innerHTML).to.be.equal('<div>4</div>');
+
+        render(assemble([5, 6, 7]), container);
+        expect(container.innerHTML).to.be.equal('<div>567</div>');
+      });
+
+      it('updates a changing array of nodes', ({ container }: any) => {
+        const assemble = (children: any) => html`<div>${children}</div>`;
+
+        render(assemble([
+          document.createElement('p'),
+          document.createElement('a'),
+          document.createElement('span')
+        ]), container);
+        expect(container.innerHTML).to.be.equal('<div><p></p><a></a><span></span></div>');
+
+        render(assemble(null), container);
+        expect(container.innerHTML).to.be.equal('<div></div>');
+
+        render(assemble(document.createTextNode('foo')), container);
+        expect(container.innerHTML).to.be.equal('<div>foo</div>');
+      });
+    });
   });
 });
 
-export { spec as ltiHtmlSpec };
-
+export const ltiHtmlSpec: Spec = spec;

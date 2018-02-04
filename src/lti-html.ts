@@ -15,7 +15,137 @@
 import { TemplateAssembly } from '../../template-instantiation/lib/template-assembly.js';
 import { TemplateDefinition } from '../../template-instantiation/lib/template-definition.js';
 import { TemplateInstance } from '../../template-instantiation/lib/template-instance.js';
-import { LtiTemplateProcessor } from './lti-template-processor.js';
+import {
+  TemplatePart,
+  AttributeTemplatePart,
+  NodeTemplatePart
+} from '../../template-instantiation/lib/template-part.js';
+import {
+  AttributeTemplateRule,
+  NodeTemplateRule
+} from '../../template-instantiation/lib/template-rule.js';
+
+
+/**
+ * Below is the `LtiTemplateProcessor`, which is the aspect of implementation
+ * most distinct from the original lit-html implementation. The template
+ * processor as implemented is similar to some of lit-html's `NodePart`.
+ * @see https://github.com/Polymer/lit-html/blob/master/src/lit-html.ts#L421-L574
+ */
+
+const $previousValue = Symbol('previousValue');
+
+export class LtiTemplateProcessor {
+  processCallback(parts: TemplatePart[], state?: any): void {
+    for (const part of parts) {
+      const { rule } = part;
+
+      if (part instanceof NodeTemplatePart) {
+        const { expression } = rule as NodeTemplateRule;
+
+        this.processNodeTemplatePart(part, state && state[expression]);
+      } else if (part instanceof AttributeTemplatePart) {
+        const { expressions } = rule as AttributeTemplateRule;
+
+        this.processAttributeTemplatePart(part,
+            expressions.map(expression => state && state[expression]));
+      }
+    }
+  }
+
+  protected processAttributeTemplatePart(part: AttributeTemplatePart,
+      value: any) {
+    part.value = value;
+  }
+
+  protected processNodeTemplatePart(part: NodeTemplatePart, value: any) {
+    if (value === null && (part as any)[$previousValue] !== null) {
+      part.clear();
+      (part as any)[$previousValue] = value;
+    } else if (!(typeof value === 'object' || typeof value === 'function')) {
+      // Handle primitive values
+      // If the value didn't change, do nothing
+      if (value === part.value) {
+        return;
+      }
+
+      part.value = value;
+      (part as any)[$previousValue] = value;
+    } else if (value instanceof TemplateAssembly) {
+      this.assignTemplateAssemblyValue(part, value);
+    } else if (Array.isArray(value) || value[Symbol.iterator] != null) {
+      this.assignIterableValue(part, value);
+    } else {
+      if (value instanceof Node) {
+        part.replace(value);
+      } else {
+        // Fallback, will render the string representation
+        part.value = value;
+      }
+
+      (part as any)[$previousValue] = value;
+    }
+  }
+
+  protected assignTemplateAssemblyValue(part: NodeTemplatePart,
+      value: TemplateAssembly) {
+    const { definition, state, processor } = value;
+    let instance: TemplateInstance = (part as any)[$previousValue];
+
+    if (instance != null &&
+        instance.definition === definition &&
+        instance.processor === processor) {
+      instance.update(state);
+    } else {
+      instance = new TemplateInstance(definition, processor, state);
+      // NOTE(cdata): rniwa calls for explicit non-support of DocumentFragment
+      // here, should look into why...
+      part.replace(...instance.childNodes);
+      (part as any)[$previousValue] = instance;
+    }
+  }
+
+  protected assignIterableValue(part: NodeTemplatePart, value: Iterable<any>) {
+    const iterableParts = (part as any)[$previousValue] || [];
+    let lastItemPart: NodeTemplatePart | null = null;
+    let partIndex = 0;
+
+    for (const item of value) {
+      let itemPart = iterableParts[partIndex];
+
+      if (itemPart == null) {
+        itemPart = partIndex === 0
+            ? part.enclose()
+            : lastItemPart!.fork();
+
+        iterableParts.push(itemPart);
+      }
+
+      this.processNodeTemplatePart(itemPart, item);
+
+      lastItemPart = itemPart;
+      partIndex++;
+    }
+
+    if (partIndex === 0) {
+      part.clear();
+      (part as any)[$previousValue] = null;
+    } else {
+      const lastPart = iterableParts[partIndex - 1];
+      iterableParts.length = partIndex;
+      part.clear(lastPart.nextSibling);
+      lastPart.setStart(lastPart.node);
+    }
+  }
+};
+
+
+/**
+ * `html` and `render` are implemented here in a fashion that is closely
+ * comparable to the original lit-html implementation. Mostly just names have
+ * been altered to line up with domain names used in the Template Instantiation
+ * prollyfill.
+ */
 
 // TODO(cdata): need envCachesTemplates check for x-browser compatibility
 // @see https://github.com/Polymer/lit-html/blob/master/src/lit-html.ts#L15-L23
